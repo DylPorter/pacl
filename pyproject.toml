@@ -1,0 +1,37 @@
+[project]
+name = "pacl"
+version = "0.0.1"
+description = "Proactive agent coordination layer — MCP server brokering context between agents as first-class principals"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "starlette>=0.36",
+    "pydantic>=2.0",
+    "google-adk>=0.1",
+    "google-genai>=0.3",
+    "arize-phoenix>=4.0",
+    "openinference-instrumentation-google-adk>=0.1",
+    "openinference-instrumentation-google-genai>=0.1",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.1",
+    "freezegun>=1.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pacl"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

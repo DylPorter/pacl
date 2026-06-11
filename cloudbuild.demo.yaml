@@ -1,0 +1,15 @@
+# Cloud Build config for the hackathon demo image (uses Dockerfile.demo, which
+# includes demo/ + serves demo.app:app). Invoked by scripts: gcloud builds submit
+# --config cloudbuild.demo.yaml .
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.demo'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/pacl/pacl-demo:latest'
+      - '.'
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/pacl/pacl-demo:latest'
+timeout: '1800s'

@@ -1,0 +1,33 @@
+# Demo image for the hackathon submission: pure PACL + the demo router/UI.
+# The base Dockerfile builds pure PACL only (demo/ is an add-on), so the hosted
+# demo needs its own image that also copies demo/ and serves demo.app:app.
+# Mirrors Dockerfile otherwise (Node + pre-warmed Arize Phoenix MCP for the
+# intermediary's stdio egress).
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libffi-dev nodejs npm && \
+    rm -rf /var/lib/apt/lists/*
+
+# Pre-warm the Arize Phoenix MCP server package so the first runtime spawn is a
+# cache hit, not a multi-MB download inside the connect timeout.
+RUN node -v && (timeout 120 npx -y @arizeai/phoenix-mcp@latest --help >/dev/null 2>&1 || true)
+
+COPY pyproject.toml uv.lock /app/
+RUN pip install --no-cache-dir uv && \
+    uv pip install --system .
+
+COPY src /app/src
+COPY demo /app/demo
+COPY README.md LICENSE /app/
+
+# /app on the path so `demo` imports; /app/src for `pacl`.
+ENV PYTHONPATH=/app:/app/src
+ENV PORT=8080
+
+EXPOSE 8080
+
+# Serve the demo (pure PACL + demo router). Cloud Run injects PORT=8080.
+CMD exec uvicorn demo.app:app --host 0.0.0.0 --port ${PORT}

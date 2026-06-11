@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PACL — Proactive Agent Coordination Layer</title>
+<style>
+  :root {
+    --bg:        #0a0c10;
+    --bg-2:      #0e1117;
+    --panel:     #12161d;
+    --panel-2:   #161b23;
+    --line:      #232a35;
+    --line-soft: #1b212a;
+    --ink:       #e8edf4;
+    --muted:     #8a96a6;
+    --faint:     #5c6675;
+
+    /* PACL ON — the shared layer is live (blue, matches the accent) */
+    --on:        #6ea8ff;
+    --on-dim:    #4a82e0;
+    --on-bg:     #0c1320;
+    --on-line:   #213049;
+    --on-glow:   rgba(110,168,255,.18);
+
+    /* PACL OFF — blind / isolated (desaturated red-amber) */
+    --off:       #f0796b;
+    --off-dim:   #c2564a;
+    --off-bg:    #1b1311;
+    --off-line:  #3a201c;
+    --off-glow:  rgba(240,121,107,.16);
+
+    /* accent — the shared layer (one blue everywhere: outline, text highlights, toggle) */
+    --acc:       #6ea8ff;
+    --acc-2:     #6ea8ff;
+    --acc-bg:    #0c1320;
+    --acc-line:  #213049;
+    --acc-glow:  rgba(110,168,255,.20);
+
+    --gold:      #e3b341;
+    --gold-bg:   #1a1610;
+    --gold-line: #3a2f17;
+
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font: 15px/1.55 var(--sans);
+    color: var(--ink);
+    background: var(--bg);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 26px 24px 60px; }
+
+  /* ---------- header ---------- */
+  header { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .brandcol { flex: 1 1 320px; min-width: 280px; }
+  .brandrow { display: flex; align-items: center; gap: 12px; }
+
+  h1 { font-size: 19px; font-weight: 600; margin: 0; letter-spacing: -.015em; line-height: 1.2; }
+  h1 .pacl { font-family: var(--mono); font-weight: 700; letter-spacing: 0; color: var(--acc); }
+  h1 .rest { color: var(--muted); font-weight: 500; }
+  .tagline { margin: 9px 0 0; color: var(--muted); font-size: 13px; max-width: 520px; }
+  .tagline b { color: var(--acc); font-weight: 600; }
+
+  /* ---------- the toggle (the star) ---------- */
+  .toggle-cell {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 14px;
+    padding: 12px 16px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--panel);
+    transition: border-color .25s ease, box-shadow .25s ease;
+  }
+  .toggle-cell.on  { border-color: var(--on);  box-shadow: 0 0 0 1px var(--on); }
+  .toggle-cell.off { border-color: var(--off); box-shadow: 0 0 0 1px var(--off); }
+  .toggle-meta { text-align: right; }
+  .toggle-kicker {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--faint);
+  }
+  .toggle-state { font-size: 13.5px; font-weight: 650; margin-top: 3px; letter-spacing: -.01em; }
+  .toggle-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .toggle-cell.on  .toggle-state { color: var(--on); }
+  .toggle-cell.off .toggle-state { color: var(--off); }
+
+  .switch {
+    --w: 78px; --h: 40px;
+    flex: none; width: var(--w); height: var(--h); border-radius: 999px; position: relative;
+    cursor: pointer; border: 1px solid var(--line); padding: 0;
+    background: var(--off-bg); transition: background .25s ease, border-color .25s ease;
+  }
+  .switch.on  { background: var(--on-bg);  border-color: var(--on-line); }
+  .switch.off { background: var(--off-bg); border-color: var(--off-line); }
+  .switch .knob {
+    position: absolute; top: 3px; left: 3px; width: 32px; height: 32px; border-radius: 50%;
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 700;
+    transition: transform .28s cubic-bezier(.34,1.4,.5,1), background .25s ease, box-shadow .25s ease, color .25s ease;
+  }
+  .switch.on  .knob { transform: translateX(38px); background: var(--on); color:#041018; }
+  .switch.off .knob { transform: translateX(0);    background: var(--off); color:#1b0c09; }
+  .switch:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+
+  /* ---------- top controls row ---------- */
+  .toprow {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-top: 22px; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft);
+  }
+  .seg {
+    display: inline-flex; gap: 3px; padding: 3px; border-radius: 11px;
+    background: var(--bg-2); border: 1px solid var(--line);
+  }
+  .seg button {
+    font: inherit; cursor: pointer; border: none; background: transparent; color: var(--muted);
+    font-size: 13px; font-weight: 550; padding: 7px 14px; border-radius: 8px;
+    transition: background .15s ease, color .15s ease;
+  }
+  .seg button:hover { color: var(--ink); }
+  .seg button.sel { background: var(--panel-2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+  .seg button:disabled { opacity: .45; cursor: default; }
+
+  .seg-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--faint); margin-right: 2px;
+  }
+  .reset {
+    margin-left: auto; font: inherit; cursor: pointer; border-radius: 10px; padding: 8px 15px;
+    font-size: 13px; font-weight: 600; background: var(--panel); color: var(--muted); border: 1px solid var(--line);
+    transition: color .15s ease, border-color .15s ease;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .reset:hover:not(:disabled) { color: var(--ink); border-color: #34404f; }
+  .reset:disabled { opacity: .5; cursor: default; }
+
+  /* ---------- context strip (full-width environment) ---------- */
+  .ctx-strip {
+    margin-top: 16px; border-radius: 12px; padding: 14px 16px;
+    border: 1px solid var(--line); border-left: 3px solid var(--acc); background: var(--panel);
+  }
+  .ctx-strip h3 {
+    margin: 0 0 8px; font-size: 10px; font-family: var(--mono); letter-spacing: .15em;
+    text-transform: uppercase; color: var(--acc); font-weight: 600;
+  }
+  .ctx-env { font-size: 13px; line-height: 1.6; color: #c6ceda; }
+  .ctx-env strong { color: var(--ink); font-weight: 650; }
+  .ctx-env code {
+    font-family: var(--mono); font-size: 12px; background: var(--acc-bg); color: var(--acc-2);
+    padding: 1px 5px; border-radius: 5px; border: 1px solid var(--acc-line);
+  }
+  .ctx-env .blank { color: var(--faint); font-family: var(--mono); font-size: 12.5px; }
+
+  /* ---------- live PACL state panel (what the coordination layer currently knows) ---------- */
+  .pacl-state {
+    margin-top: 16px; border-radius: 12px; padding: 12px 16px;
+    border: 1px solid var(--line); border-left: 3px solid var(--acc); background: var(--panel);
+  }
+  .pacl-state h3 {
+    margin: 0 0 9px; font-size: 10px; font-family: var(--mono); letter-spacing: .15em;
+    text-transform: uppercase; color: var(--acc); font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ps-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--acc);
+    box-shadow: 0 0 0 0 var(--acc-glow); animation: ping 1.7s ease-out infinite;
+  }
+  .ps-body { display: flex; flex-direction: column; gap: 6px; }
+  .ps-empty { color: var(--faint); font-family: var(--mono); font-size: 12px; }
+  .ps-row { font-family: var(--mono); font-size: 12.5px; line-height: 1.5; color: #c6ceda; }
+  .ps-row .who { color: var(--acc); font-weight: 600; }
+  .ps-row .intent { color: var(--ink); }
+  .ps-row .scope code {
+    font-family: var(--mono); font-size: 11px; background: var(--acc-bg); color: var(--acc);
+    padding: 0 5px; border-radius: 4px; border: 1px solid var(--acc-line); margin-left: 4px;
+  }
+
+  /* ---------- quick prompts (sit under the terminals) ---------- */
+  .prompts-bar { margin-top: 16px; }
+  .prompts-head {
+    margin-bottom: 9px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .15em; text-transform: uppercase; color: var(--faint);
+  }
+  .prompts-head .hint { letter-spacing: 0; text-transform: none; font-family: var(--sans); font-size: 11.5px; color: var(--acc); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
+    background: var(--panel); color: #c6ceda; border: 1px solid var(--line);
+    border-radius: 9px; padding: 7px 12px; line-height: 1.35; max-width: 100%;
+    transition: border-color .15s ease, color .15s ease, transform .12s ease, background .15s ease;
+  }
+  .chip:hover { border-color: var(--acc); color: var(--ink); background: var(--acc-bg); transform: translateY(-1px); }
+  .chip:active { transform: translateY(0); }
+  .chip .q { color: var(--acc); font-family: var(--mono); margin-right: 6px; }
+
+  /* ---------- terminals ---------- */
+  .terminals { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; align-items: stretch; }
+  @media (max-width: 880px) { .terminals { grid-template-columns: 1fr; } }
+
+  .term {
+    display: flex; flex-direction: column; height: 500px; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--line); background: var(--bg-2);
+    transition: border-color .2s ease, box-shadow .2s ease, opacity .2s ease, filter .2s ease;
+  }
+  /* inactive: visibly dimmed + desaturated so the active one pops */
+  .term:not(.active) { opacity: .5; filter: saturate(.45); }
+  /* active: thick bright accent border so it's unmistakable */
+  .term.active { border: 2px solid var(--acc); box-shadow: 0 0 0 2px var(--acc); }
+
+  .term-bar {
+    display: flex; align-items: center; gap: 9px; padding: 11px 14px;
+    border-bottom: 1px solid var(--line); background: var(--panel-2);
+    flex: none; transition: background .2s ease, color .2s ease;
+  }
+  /* active: highlighted titlebar */
+  .term.active .term-bar { background: var(--acc); border-bottom-color: var(--acc); }
+  .term.active .term-id { color: #07101e; }
+  .term.active .term-role { color: rgba(7,16,30,.7); font-style: normal; }
+  .term.active .traffic span { background: rgba(7,16,30,.35); }
+  .traffic { display: flex; gap: 6px; }
+  .traffic span { width: 10px; height: 10px; border-radius: 50%; background: #2a313c; }
+  .traffic span:nth-child(1) { background: var(--off-dim); }
+  .traffic span:nth-child(2) { background: var(--gold); }
+  .traffic span:nth-child(3) { background: var(--on-dim); }
+  .term-id { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--ink); }
+  .term-role { font-size: 11px; color: var(--faint); margin-left: auto; font-style: italic; max-width: 48%; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .log {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 12px;
+    background: var(--bg);
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+  }
+  .log::-webkit-scrollbar { width: 8px; }
+  .log::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
+
+  .empty-log {
+    margin: auto; text-align: center; color: var(--faint); font-family: var(--mono); font-size: 12px; line-height: 1.7;
+    padding: 20px;
+  }
+  .empty-log .blink { color: var(--acc); animation: blink 1.1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* messages */
+  .msg { max-width: 86%; }
+  .msg.user { align-self: flex-end; }
+  .msg.agent { align-self: flex-start; }
+  .msg-who {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--faint); margin-bottom: 4px;
+  }
+  .msg.user .msg-who { text-align: right; }
+  .bubble {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.55; padding: 9px 12px;
+    border: 1px solid; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere;
+  }
+  .msg.user .bubble {
+    border-radius: 10px 10px 3px 10px; background: var(--panel); border-color: var(--line-soft); color: var(--muted);
+  }
+  .msg.agent .bubble {
+    border-radius: 3px 10px 10px 10px; background: var(--panel-2); border-color: var(--line); color: var(--ink);
+  }
+
+  /* the magic: PACL-saw marker */
+  .saw {
+    margin-top: 6px; font-family: var(--mono); font-size: 11px; line-height: 1.45;
+    color: var(--acc-2); background: var(--acc-bg);
+    border: 1px solid var(--acc-line); border-left: 2px solid var(--acc);
+    border-radius: 7px; padding: 6px 10px;
+    animation: sawland 1.1s ease-out;
+  }
+  .saw .zap { color: var(--acc); margin-right: 5px; }
+  .saw .lbl { color: var(--faint); letter-spacing: .04em; }
+  .saw ul { margin: 4px 0 0; padding: 0 0 0 14px; list-style: none; }
+  .saw li { position: relative; padding: 1px 0; }
+  .saw li::before { content: "›"; position: absolute; left: -12px; color: var(--acc); }
+  @keyframes sawland {
+    0%   { box-shadow: 0 0 0 1px rgba(110,168,255,.5), 0 0 22px -4px var(--acc-glow); }
+    100% { box-shadow: 0 0 0 0 rgba(110,168,255,0); }
+  }
+  /* proactive alert PACL pushed back — gold, so it reads as PACL intervening,
+     distinct from the blue "called …" marker (what the agent did) */
+  .saw.alert { color: #f0e2c0; background: var(--gold-bg); border-color: var(--gold-line); border-left-color: var(--gold); }
+  .saw.alert .zap { color: var(--gold); }
+  .saw.alert .lbl { color: var(--gold); }
+  .saw.alert li::before { color: var(--gold); }
+
+  /* thinking state */
+  .thinking { align-self: flex-start; max-width: 86%; }
+  .thinking .bubble {
+    border-radius: 3px 10px 10px 10px; background: var(--panel-2); border: 1px solid var(--line);
+    display: inline-flex; align-items: center; gap: 9px; color: var(--muted); font-family: var(--mono); font-size: 12px;
+  }
+  .thinking .cur { width: 8px; height: 15px; background: var(--acc); display: inline-block; animation: blink 1s step-end infinite; }
+  .thinking .lbl { color: var(--faint); }
+  .dots::after { content: ""; animation: dots 1.4s steps(4,end) infinite; }
+  @keyframes dots { 0%{content:"";} 25%{content:"·";} 50%{content:"··";} 75%{content:"···";} }
+
+  /* per-message error note */
+  .errnote {
+    align-self: flex-start; max-width: 86%; font-size: 12px; line-height: 1.5;
+    border-radius: 9px; padding: 8px 11px; border: 1px solid;
+  }
+  .errnote.quota { background: var(--gold-bg); border-color: var(--gold-line); color: #e9e0cb; }
+  .errnote.quota b { color: var(--gold); }
+  .errnote.transient { background: var(--panel-2); border-color: var(--line); color: var(--muted); }
+  .errnote.transient b { color: var(--ink); }
+
+  /* input row */
+  .composer {
+    flex: none; display: flex; gap: 8px; padding: 11px 12px; border-top: 1px solid var(--line);
+    background: var(--panel); align-items: flex-end;
+  }
+  .composer .prompt-glyph { font-family: var(--mono); color: var(--acc); font-size: 14px; padding: 9px 0 0 2px; user-select: none; }
+  .composer textarea {
+    flex: 1; resize: none; font: 13px/1.5 var(--mono); color: var(--ink);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px;
+    max-height: 120px; min-height: 40px;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .composer textarea::placeholder { color: var(--faint); }
+  .composer textarea:focus { outline: none; border-color: var(--acc-line); box-shadow: 0 0 0 1px var(--acc-line); }
+  .composer textarea:disabled { opacity: .55; }
+  .send {
+    flex: none; font: inherit; cursor: pointer; border-radius: 9px; padding: 9px 16px; font-weight: 650; font-size: 13px;
+    color: #041018; border: 1px solid var(--on-dim); background: var(--on);
+    transition: transform .1s ease, opacity .15s ease, filter .15s ease;
+  }
+  .send:hover:not(:disabled) { filter: brightness(1.05); }
+  .send:active:not(:disabled) { transform: translateY(1px) scale(.99); }
+  .send:disabled { opacity: .5; cursor: default; filter: saturate(.6); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px);
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--ink);
+    padding: 10px 16px; border-radius: 11px; font-size: 13px; box-shadow: 0 16px 40px -18px #000;
+    opacity: 0; transition: opacity .25s ease, transform .25s ease; z-index: 50; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .footnote { margin-top: 26px; text-align: center; color: var(--faint); font-size: 11.5px; font-family: var(--mono); letter-spacing: .04em; }
+  .footnote span { color: var(--muted); }
+
+  .loading-screen { padding: 60px 0; text-align: center; color: var(--faint); font-family: var(--mono); font-size: 13px; }
+  .loading-screen .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--acc); display: inline-block; margin-right: 9px;
+    box-shadow: 0 0 0 0 var(--acc-glow); animation: ping 1.4s ease-out infinite; vertical-align: middle;
+  }
+  @keyframes ping {
+    0% { box-shadow: 0 0 0 0 rgba(110,168,255,.5); }
+    70% { box-shadow: 0 0 0 9px rgba(110,168,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(110,168,255,0); }
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brandcol">
+      <div class="brandrow">
+        <h1><span class="pacl">PACL</span> <span class="rest">— Proactive Agent Coordination Layer</span></h1>
+      </div>
+      <p class="tagline">
+        Two live agents. PACL lets each <b>see what its teammate is doing</b> — flip it off and they go blind.
+      </p>
+    </div>
+
+    <div class="toggle-cell on" id="toggleCell">
+      <div class="toggle-meta">
+        <div class="toggle-kicker">PACL</div>
+        <div class="toggle-state" id="toggleState">ON</div>
+        <div class="toggle-sub" id="toggleSub">agents can see each other</div>
+      </div>
+      <button class="switch on" id="paclSwitch" role="switch" aria-checked="true" aria-label="Toggle PACL coordination layer">
+        <span class="knob" id="knob">ON</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- top controls: context selector + reset -->
+  <div class="toprow">
+    <span class="seg-label">context</span>
+    <div class="seg" id="ctxSeg" aria-label="context selector"></div>
+    <button class="reset" id="resetBtn" type="button">⟲ Reset</button>
+  </div>
+
+  <div id="loading" class="loading-screen"><span class="pulse-dot"></span>spinning up…</div>
+
+  <div id="app" hidden>
+    <!-- context strip: full-width environment -->
+    <div class="ctx-strip">
+      <h3>// environment</h3>
+      <div class="ctx-env" id="ctxEnv"></div>
+    </div>
+
+    <!-- the two terminals -->
+    <div class="terminals" id="terminals"></div>
+
+    <!-- quick prompts: under the terminals, near the inputs -->
+    <div class="prompts-bar">
+      <div class="prompts-head">
+        quick prompts <span class="hint" id="promptsHint">→ drop into active terminal</span>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <!-- live PACL state: beneath everything, so it can grow downward (scroll to read)
+         without shoving the terminals around -->
+    <div class="pacl-state" id="paclState">
+      <h3>// what PACL knows <span class="ps-dot" aria-hidden="true"></span></h3>
+      <div class="ps-body" id="psBody"><span class="ps-empty">PACL is watching — no active work registered yet.</span></div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    <span>every reply is a live Gemini request — nothing pre-baked</span>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+
+const state = {
+  contexts: [],          // from GET /demo/contexts
+  ctx: null,             // current full context (from POST /demo/context)
+  pacl: true,
+  activeAgent: null,     // agent_id of the focused terminal (for quick-prompt routing)
+  inFlight: new Set(),   // agent_ids with a request in flight
+  switching: false,
+};
+
+const elCtxSeg    = $("#ctxSeg");
+const elResetBtn  = $("#resetBtn");
+const elLoading   = $("#loading");
+const elApp       = $("#app");
+const elCtxEnv    = $("#ctxEnv");
+const elChips     = $("#chips");
+const elTerminals = $("#terminals");
+const elToast     = $("#toast");
+const elToggleCell  = $("#toggleCell");
+const elSwitch    = $("#paclSwitch");
+const elKnob      = $("#knob");
+const elToggleState = $("#toggleState");
+const elToggleSub = $("#toggleSub");
+const elPromptsHint = $("#promptsHint");
+
+/* ---------- safe DOM helpers (textContent only — never innerHTML with data) ---------- */
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text; // textContent = XSS-safe
+  return n;
+}
+
+// minimal SAFE markdown for the environment blurb: **bold**, `code`, line breaks.
+// Builds DOM nodes — no innerHTML with dynamic data, so injection is impossible.
+function renderMarkdown(target, md) {
+  target.textContent = "";
+  const blocks = String(md || "").replace(/\r/g, "").split(/\n{2,}/);
+  blocks.forEach((block, bi) => {
+    const p = el("p");
+    p.style.margin = bi === 0 ? "0" : ".6em 0 0";
+    // Single newlines are soft-wraps (source readability), NOT line breaks — collapse
+    // to spaces so the text fills the full width; only blank lines start a new paragraph.
+    appendInline(p, block.replace(/\n+/g, " ").trim());
+    target.appendChild(p);
+  });
+}
+function appendInline(parent, text) {
+  const re = /(\*\*([^*]+)\*\*|`([^`]+)`)/g;
+  let last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+    if (m[2] != null) { const b = el("strong"); b.textContent = m[2]; parent.appendChild(b); }
+    else if (m[3] != null) { const c = el("code"); c.textContent = m[3]; parent.appendChild(c); }
+    last = re.lastIndex;
+  }
+  if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+}
+
+function toast(msg) {
+  elToast.textContent = msg;
+  elToast.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => elToast.classList.remove("show"), 2600);
+}
+
+/* ---------- PACL toggle ---------- */
+
+function setPacl(on) {
+  state.pacl = on;
+  elSwitch.classList.toggle("on", on);
+  elSwitch.classList.toggle("off", !on);
+  elToggleCell.classList.toggle("on", on);
+  elToggleCell.classList.toggle("off", !on);
+  elSwitch.setAttribute("aria-checked", on ? "true" : "false");
+  elKnob.textContent = on ? "ON" : "OFF";
+  elToggleState.textContent = on ? "ON" : "OFF";
+  elToggleSub.textContent = on ? "agents can see each other" : "agents are blind to each other";
+}
+elSwitch.addEventListener("click", () => setPacl(!state.pacl));
+elSwitch.addEventListener("keydown", (e) => {
+  if (e.key === " " || e.key === "Enter") { e.preventDefault(); setPacl(!state.pacl); }
+});
+
+/* ---------- 1. load contexts, render selector ---------- */
+
+async function boot() {
+  try {
+    const r = await fetch("/demo/contexts");
+    state.contexts = await r.json();
+  } catch (e) {
+    elLoading.textContent = "Could not reach the demo server. Is it running?";
+    return;
+  }
+  renderSelector();
+  await loadContext("dev"); // default
+}
+
+function renderSelector() {
+  elCtxSeg.textContent = "";
+  for (const c of state.contexts) {
+    const b = el("button", "", c.label);
+    b.type = "button";
+    b.dataset.key = c.key;
+    b.title = c.blurb || "";
+    b.addEventListener("click", () => loadContext(c.key));
+    elCtxSeg.appendChild(b);
+  }
+}
+
+/* ---------- 2. POST /demo/context -> resets sandbox + returns one context ---------- */
+
+async function loadContext(key) {
+  if (state.switching) return;
+  if (state.ctx && state.ctx.key === key && !state.inFlight.size) { /* allow re-select reset */ }
+  state.switching = true;
+  setSegDisabled(true);
+  for (const b of elCtxSeg.children) b.classList.toggle("sel", b.dataset.key === key);
+
+  try {
+    const r = await fetch("/demo/context", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    });
+    state.ctx = await r.json();
+  } catch (e) {
+    toast("Failed to load that context — check the server.");
+    state.switching = false;
+    setSegDisabled(false);
+    return;
+  }
+  state.inFlight.clear();
+  renderContext(state.ctx);
+  elLoading.hidden = true;
+  elApp.hidden = false;
+  _seenAlerts.clear();
+  renderPaclState({});
+  startPaclPoll();
+  state.switching = false;
+  setSegDisabled(false);
+}
+
+function setSegDisabled(d) {
+  for (const b of elCtxSeg.children) b.disabled = d;
+}
+
+function renderContext(ctx) {
+  // environment
+  if (ctx.environment && ctx.environment.trim()) renderMarkdown(elCtxEnv, ctx.environment);
+  else { elCtxEnv.textContent = ""; elCtxEnv.appendChild(el("span", "blank", "Blank slate — agents start cold.")); }
+
+  // quick prompts
+  elChips.textContent = "";
+  (ctx.quick_prompts || []).forEach((p) => {
+    const chip = el("button", "chip");
+    chip.type = "button";
+    chip.appendChild(el("span", "q", "›"));
+    chip.appendChild(document.createTextNode(p));
+    chip.addEventListener("click", () => dropPrompt(p));
+    elChips.appendChild(chip);
+  });
+
+  // terminals
+  buildTerminals(ctx.agents || []);
+}
+
+/* ---------- 3. terminals ---------- */
+
+// per agent_id: { log, textarea, send, term }
+const terms = {};
+
+function buildTerminals(agents) {
+  elTerminals.textContent = "";
+  for (const k of Object.keys(terms)) delete terms[k];
+  state.activeAgent = agents.length ? agents[0].agent_id : null;
+
+  agents.forEach((a, i) => {
+    const term = el("div", "term");
+    term.dataset.agent = a.agent_id;
+
+    // titlebar
+    const bar = el("div", "term-bar");
+    const traffic = el("div", "traffic");
+    traffic.appendChild(el("span")); traffic.appendChild(el("span")); traffic.appendChild(el("span"));
+    bar.appendChild(traffic);
+    bar.appendChild(el("span", "term-id", a.agent_id));
+    if (a.role) bar.appendChild(el("span", "term-role", a.role));
+    term.appendChild(bar);
+
+    // log
+    const log = el("div", "log");
+    const empty = el("div", "empty-log");
+    empty.appendChild(document.createTextNode("$ message " + a.agent_id));
+    empty.appendChild(el("br"));
+    empty.appendChild(document.createTextNode("waiting for input "));
+    empty.appendChild(el("span", "blink", "▋"));
+    log.appendChild(empty);
+    term.appendChild(log);
+
+    // composer
+    const composer = el("div", "composer");
+    composer.appendChild(el("span", "prompt-glyph", "›"));
+    const ta = document.createElement("textarea");
+    ta.rows = 1;
+    ta.placeholder = "message " + a.agent_id + "…  (Enter to send)";
+    ta.addEventListener("input", () => autoGrow(ta));
+    ta.addEventListener("focus", () => setActive(a.agent_id));
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(a.agent_id); }
+    });
+    const send_ = el("button", "send", "Send");
+    send_.type = "button";
+    send_.addEventListener("click", () => send(a.agent_id));
+    composer.appendChild(ta);
+    composer.appendChild(send_);
+    term.appendChild(composer);
+
+    term.addEventListener("click", () => setActive(a.agent_id));
+
+    elTerminals.appendChild(term);
+    terms[a.agent_id] = { log, textarea: ta, send: send_, term, empty };
+  });
+
+  refreshActiveStyles();
+}
+
+function autoGrow(ta) {
+  ta.style.height = "auto";
+  ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+}
+
+function setActive(agentId) {
+  state.activeAgent = agentId;
+  refreshActiveStyles();
+}
+function refreshActiveStyles() {
+  for (const id of Object.keys(terms)) {
+    terms[id].term.classList.toggle("active", id === state.activeAgent);
+  }
+  const a = state.ctx && (state.ctx.agents || []).find((x) => x.agent_id === state.activeAgent);
+  if (a) elPromptsHint.textContent = "→ " + a.agent_id;
+}
+
+// quick-prompt: fill the active terminal's input (editable, not auto-sent) and focus it.
+function dropPrompt(text) {
+  const id = state.activeAgent || Object.keys(terms)[0];
+  if (!id) return;
+  const t = terms[id];
+  if (!t) return;
+  t.textarea.value = text;
+  autoGrow(t.textarea);
+  t.textarea.focus();
+  t.term.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/* ---------- 4. send a live turn -> POST /demo/chat ---------- */
+
+async function send(agentId) {
+  const t = terms[agentId];
+  if (!t || state.inFlight.has(agentId)) return;
+  const message = t.textarea.value.trim();
+  if (!message) return;
+
+  // drop the empty-state placeholder
+  if (t.empty && t.empty.parentNode) { t.empty.remove(); t.empty = null; }
+
+  // render the user message
+  appendMessage(t, "user", agentId, message);
+  t.textarea.value = "";
+  autoGrow(t.textarea);
+
+  // lock this terminal + show thinking
+  state.inFlight.add(agentId);
+  setBusy(t, true);
+  const thinking = appendThinking(t);
+
+  const usedPacl = state.pacl; // snapshot: reflect the toggle at send time
+  let data;
+  try {
+    const r = await fetch("/demo/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        context_key: state.ctx.key,
+        agent_id: agentId,
+        message,
+        pacl: usedPacl,
+      }),
+    });
+    data = await r.json();
+  } catch (e) {
+    data = { reply: "", error: "transient", saw: [] };
+  }
+
+  thinking.remove();
+
+  if (data.error) {
+    appendError(t, data.error);
+    if (data.reply) appendMessage(t, "agent", agentId, data.reply, usedPacl ? data : null);
+  } else {
+    appendMessage(t, "agent", agentId, data.reply || "(no output)", usedPacl ? data : null);
+  }
+
+  state.inFlight.delete(agentId);
+  setBusy(t, false);
+  t.textarea.focus();
+}
+
+function setBusy(t, busy) {
+  t.textarea.disabled = busy;
+  t.send.disabled = busy;
+  t.send.textContent = busy ? "…" : "Send";
+}
+
+function appendMessage(t, who, agentId, text, pacl) {
+  const msg = el("div", "msg " + who);
+  msg.appendChild(el("div", "msg-who", who === "user" ? "you → " + agentId : agentId));
+  msg.appendChild(el("div", "bubble", text));
+
+  // Real PACL markers — only for agent replies with PACL on.
+  if (who === "agent" && pacl) {
+    const calls = Array.isArray(pacl.tool_calls) ? pacl.tool_calls : [];
+    const alerts = Array.isArray(pacl.alerts) ? pacl.alerts : [];
+
+    // What the agent actually DID on PACL this turn (real MCP tool calls).
+    if (calls.length) {
+      const names = [];
+      for (const c of calls) { const n = (c && c.name) || "?"; if (!names.includes(n)) names.push(n); }
+      const callEl = el("div", "saw");
+      const head = el("div");
+      head.appendChild(el("span", "zap", "⚡"));
+      head.appendChild(el("span", "lbl", "via PACL — called " + names.join(" · ")));
+      callEl.appendChild(head);
+      msg.appendChild(callEl);
+    }
+
+    // Proactive coordination PACL handed back on the tool response.
+    if (alerts.length) {
+      const alertEl = el("div", "saw alert");
+      const head = el("div");
+      head.appendChild(el("span", "zap", "⚡"));
+      head.appendChild(el("span", "lbl", "PACL flagged:"));
+      alertEl.appendChild(head);
+      const ul = el("ul");
+      for (const a of alerts) ul.appendChild(el("li", null, a));
+      alertEl.appendChild(ul);
+      msg.appendChild(alertEl);
+    }
+  }
+
+  t.log.appendChild(msg);
+  scrollLog(t);
+  return msg;
+}
+
+function appendThinking(t) {
+  const node = el("div", "thinking");
+  const bubble = el("div", "bubble");
+  bubble.appendChild(el("span", "cur"));
+  bubble.appendChild(el("span", "lbl", "thinking"));
+  const dots = el("span", "dots");
+  bubble.appendChild(dots);
+  node.appendChild(bubble);
+  t.log.appendChild(node);
+  scrollLog(t);
+  return node;
+}
+
+function appendError(t, error) {
+  const note = el("div", "errnote " + (error === "quota" ? "quota" : "transient"));
+  if (error === "quota") {
+    const b = el("b"); b.textContent = "Out of demo credits — not a bug. ";
+    note.appendChild(b);
+    note.appendChild(document.createTextNode("The hosted sandbox spent its Gemini budget; the logic is intact."));
+  } else {
+    const b = el("b"); b.textContent = "Transient hiccup. ";
+    note.appendChild(b);
+    note.appendChild(document.createTextNode("Model/connection blip — send again."));
+  }
+  t.log.appendChild(note);
+  scrollLog(t);
+}
+
+function scrollLog(t) {
+  t.log.scrollTop = t.log.scrollHeight;
+}
+
+/* ---------- reset ---------- */
+
+elResetBtn.addEventListener("click", async () => {
+  if (state.switching) return;
+  elResetBtn.disabled = true;
+  try {
+    await fetch("/demo/reset", { method: "POST" });
+    // clear both logs back to empty state
+    for (const id of Object.keys(terms)) {
+      const t = terms[id];
+      t.log.textContent = "";
+      const empty = el("div", "empty-log");
+      empty.appendChild(document.createTextNode("$ message " + id));
+      empty.appendChild(el("br"));
+      empty.appendChild(document.createTextNode("waiting for input "));
+      empty.appendChild(el("span", "blink", "▋"));
+      t.log.appendChild(empty);
+      t.empty = empty;
+      t.textarea.value = "";
+      autoGrow(t.textarea);
+    }
+    state.inFlight.clear();
+    _seenAlerts.clear();
+    renderPaclState({});
+    toast("Reset — PACL memory wiped, agents start clean.");
+  } catch (e) {
+    toast("Reset failed — check the server.");
+  } finally {
+    elResetBtn.disabled = false;
+  }
+});
+
+/* ---------- live PACL state panel + proactive-push surfacing (demo-only) ---------- */
+/* Polls the REAL PACL routes: /demo/shared (the live overlap map = what PACL knows) and
+   /demo/alerts (proactive pushes the intermediary emitted, unsolicited). Both are real
+   engine state — this only makes the coordination layer visible, it doesn't fake anything. */
+
+const _seenAlerts = new Set();
+let _paclPoll = null;
+
+function renderPaclState(map) {
+  const body = $("#psBody");
+  if (!body) return;
+  body.textContent = "";
+  const ids = Object.keys(map || {});
+  if (!ids.length) {
+    body.appendChild(el("span", "ps-empty", "PACL is watching — no active work registered yet."));
+    return;
+  }
+  for (const id of ids) {
+    const st = map[id] || {};
+    const row = el("div", "ps-row");
+    row.appendChild(el("span", "who", id));
+    row.appendChild(document.createTextNode(" — "));
+    row.appendChild(el("span", "intent", '"' + (st.intent || "") + '"'));
+    const scope = Array.isArray(st.scope) ? st.scope : [];
+    if (scope.length) {
+      const sc = el("span", "scope");
+      for (const s of scope) { const c = el("code"); c.textContent = s; sc.appendChild(c); }
+      row.appendChild(sc);
+    }
+    body.appendChild(row);
+  }
+}
+
+function surfacePushedAlert(agentId, text) {
+  const key = agentId + "|" + text;
+  if (_seenAlerts.has(key)) return;
+  _seenAlerts.add(key);
+  const t = terms[agentId];
+  if (!t) return;
+  if (t.empty && t.empty.parentNode) { t.empty.remove(); t.empty = null; }
+  const node = el("div", "msg agent");
+  node.appendChild(el("div", "msg-who", "PACL → " + agentId));
+  const alertEl = el("div", "saw alert");
+  const head = el("div");
+  head.appendChild(el("span", "zap", "⚡"));
+  head.appendChild(el("span", "lbl", "PACL flagged this — unprompted:"));
+  alertEl.appendChild(head);
+  const ul = el("ul");
+  ul.appendChild(el("li", null, text));
+  alertEl.appendChild(ul);
+  node.appendChild(alertEl);
+  t.log.appendChild(node);
+  scrollLog(t);
+}
+
+async function paclTick() {
+  try {
+    const r = await fetch("/demo/shared");
+    if (r.ok) renderPaclState(await r.json());
+  } catch (e) { /* transient — ignore */ }
+  // Surface proactive pushes for agents NOT mid-turn (in-turn drains handle those).
+  for (const id of Object.keys(terms)) {
+    if (state.inFlight.has(id)) continue;
+    try {
+      const r = await fetch("/demo/alerts?agent_id=" + encodeURIComponent(id));
+      if (!r.ok) continue;
+      const d = await r.json();
+      for (const a of (d.alerts || [])) surfacePushedAlert(id, a);
+    } catch (e) { /* ignore */ }
+  }
+}
+
+function startPaclPoll() {
+  if (_paclPoll) return;
+  _paclPoll = setInterval(paclTick, 4000);
+  paclTick();
+}
+
+/* ---------- boot ---------- */
+boot();
+</script>
+</body>
+</html>
