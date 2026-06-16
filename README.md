@@ -46,12 +46,12 @@ sequenceDiagram
     participant A as dev-alice
     participant P as PACL intermediary
     participant B as dev-bob
-    A->>P: update_intent("refactor the checkout payment flow")
+    A->>P: update_intent('refactor the checkout payment flow')
     Note over P: reasons over the whole team's state
-    B->>P: report_activity("edit", "src/checkout.py")
+    B->>P: report_activity('edit', 'src/checkout.py')
     Note over P: detects the overlap with dev-alice
-    B->>P: query("anyone else touching this?")
-    P-->>B: result + alerts:<br/>"⚡ dev-alice is also working on src/checkout.py — coordinate before you edit"
+    B->>P: query('anyone else touching this?')
+    P-->>B: alerts: ⚡ dev-alice is also working on<br/>src/checkout.py — coordinate before you edit
     Note over B: coordination arrives piggybacked on the<br/>next tool response, not a separate channel
 ```
 
