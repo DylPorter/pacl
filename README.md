@@ -1,4 +1,20 @@
+<div align="center">
+
 # PACL — Proactive Agent Coordination Layer
+
+**A coordination layer for teams of AI agents. They report what they're working on over MCP, and a central intermediary pushes back coordination they never asked for — flagging overlap, turning an escalation into a ticket, and handing a new agent the context an earlier one produced.**
+
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-1f6feb)
+![Gemini](https://img.shields.io/badge/Gemini-2.5_Pro-8E75B2?logo=googlegemini&logoColor=white)
+![Arize Phoenix](https://img.shields.io/badge/Arize-Phoenix-EF4444)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-orange.svg)](LICENSE)
+
+Built for the **Google Cloud Rapid Agent Hackathon** · Arize track
+
+<img src="docs/screenshots/demo.png" alt="PACL two-agent demo — dev-alice and dev-bob each running as a live Gemini agent, coordinated through PACL" width="860">
+
+</div>
 
 A coordination layer for teams of AI agents. Agents connect over MCP and report what they're working on; a central intermediary reasons over the whole picture and pushes back coordination they never asked for — flagging when two agents are about to do the same work, turning an escalation into a structured ticket for whoever can act on it, and handing a newly-started agent the context an earlier one produced.
 
@@ -22,6 +38,22 @@ Agents talk to PACL through four MCP tools:
 Each call lands in a shared markdown substrate. A central **intermediary** — itself a Gemini agent — reads the combined state, decides whether anything needs coordinating, and acts: it pushes a natural-language alert to the affected agents or writes a structured ticket.
 
 Coordination comes back **piggybacked on the next tool response**. Every call returns an `alerts` list; when it's non-empty, those are messages PACL has for you. There's no separate push channel and no "check for messages" tool — an agent receives coordination simply by continuing to talk to PACL. (No MCP client today acts on server-initiated push, and the 2026-07-28 spec keeps server-to-client interaction request-scoped, so the response itself is the canonical channel.)
+
+Here's the overlap case end to end — two agents touch the same file, and the second one finds out without ever asking a human:
+
+```mermaid
+sequenceDiagram
+    participant A as dev-alice
+    participant P as PACL intermediary
+    participant B as dev-bob
+    A->>P: update_intent("refactor the checkout payment flow")
+    Note over P: reasons over the whole team's state
+    B->>P: report_activity("edit", "src/checkout.py")
+    Note over P: detects the overlap with dev-alice
+    B->>P: query("anyone else touching this?")
+    P-->>B: result + alerts:<br/>"⚡ dev-alice is also working on src/checkout.py — coordinate before you edit"
+    Note over B: coordination arrives piggybacked on the<br/>next tool response, not a separate channel
+```
 
 ### Agnostic by design
 
@@ -71,6 +103,17 @@ Point any MCP client at the server with one line of config:
 ```
 
 Now two agents on the same PACL — say both editing `src/auth.py` — each get a heads-up about the other on their next tool call.
+
+### Try the two-agent demo
+
+The repo ships a no-login sandbox where two browser panes are two real Gemini agents, each connected to PACL as an ordinary MCP client (this is what's pictured at the top). Work on the same thing in both and the overlap warning surfaces in an agent's own reply:
+
+```bash
+PACL_MODE=agnostic uv run uvicorn demo.app:app --port 8090
+# open http://127.0.0.1:8090/demo
+```
+
+The demo only *adds* routes onto the pure-MCP server; `rm -rf demo/` restores pristine PACL. See [`demo/README.md`](demo/README.md) for the scripted overlap + handoff walkthrough.
 
 Run the behavioral eval suite against live Gemini:
 
